@@ -1,0 +1,376 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>大六壬智能排盘系统 - 修正版</title>
+    <script src="https://cdn.jsdelivr.net/npm/lunar-javascript@1.13.2/lunar.js"></script>
+    <style>
+        :root {
+            --primary-color: #8E44AD;
+            --bg-color: #f9f9f9;
+            --card-bg: #ffffff;
+            --border-color: #e0e0e0;
+            --text-color: #333;
+        }
+
+        body {
+            font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .container {
+            max-width: 800px;
+            width: 100%;
+            background: var(--card-bg);
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+        }
+
+        h1 {
+            text-align: center;
+            color: var(--primary-color);
+            margin-bottom: 20px;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: center;
+            margin-bottom: 20px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid var(--border-color);
+        }
+
+        input[type="datetime-local"] {
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 6px;
+            font-size: 16px;
+        }
+
+        button {
+            padding: 10px 20px;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 15px;
+        }
+        button:hover { background-color: #732d91; }
+        button.secondary { background-color: #2c3e50; }
+
+        .pan-section { margin-bottom: 25px; }
+        .section-title {
+            font-weight: bold;
+            border-left: 4px solid var(--primary-color);
+            padding-left: 10px;
+            margin-bottom: 15px;
+            background: #f4eff7;
+            padding: 5px 10px;
+            border-radius: 0 5px 5px 0;
+        }
+
+        /* 基础信息 */
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 8px;
+            background: #fcfcfc;
+            padding: 10px;
+            border: 1px solid #eee;
+            border-radius: 8px;
+            font-size: 0.95em;
+        }
+
+        /* 三传 */
+        .sanchuan-box {
+            display: flex;
+            justify-content: space-around;
+            text-align: center;
+            background: #fffbfb;
+            padding: 15px;
+            border: 1px solid #ffe0e0;
+            border-radius: 8px;
+        }
+        .sanchuan-item span { display: block; }
+        .sanchuan-name { font-weight: bold; color: #d35400; font-size: 0.9em; margin-bottom: 5px;}
+
+        /* 四课 */
+        .sike-box {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            text-align: center;
+            gap: 8px;
+        }
+        .sike-col {
+            background: #f0f8ff;
+            padding: 10px 5px;
+            border-radius: 6px;
+            border: 1px solid #dceefc;
+        }
+        .sike-char { font-size: 1.1em; font-weight: bold; margin: 4px 0; }
+        .sike-label { font-size: 0.75em; color: #888; margin-bottom: 5px; }
+
+        /* 天地盘九宫格 */
+        .tiandipan-box {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 8px;
+        }
+        .grid-cell {
+            aspect-ratio: 1;
+            border: 1px solid #eee;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: #fff;
+            border-radius: 6px;
+            position: relative;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.02);
+        }
+        .tian-pan { font-weight: bold; font-size: 1.3em; color: var(--primary-color); }
+        .di-pan { font-size: 0.9em; color: #999; position: absolute; bottom: 5px; right: 5px; font-weight: bold;}
+        .shen-jiang { font-size: 0.85em; color: #e74c3c; position: absolute; top: 5px; left: 5px;}
+
+        .status-msg { text-align: center; margin-top: 10px; color: green; min-height: 20px; font-weight: bold;}
+        
+        /* 错误提示样式 */
+        .error-msg { color: red; font-weight: bold; padding: 10px; background: #ffeaea; border-radius: 5px; display: none; text-align: center; margin-bottom: 10px;}
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>🔮 大六壬智能排盘 <small style="font-size:0.5em; color:#666">v2.0</small></h1>
+    
+    <div id="errorDisplay" class="error-msg"></div>
+
+    <div class="controls">
+        <input type="datetime-local" id="dateInput">
+        <button onclick="calculatePan()">📅 开始排盘</button>
+        <button onclick="setNow()">⏱️ 当前时间</button>
+        <button class="secondary" onclick="copyForAI()">🤖 复制给 AI</button>
+    </div>
+    <div id="message" class="status-msg"></div>
+
+    <div id="resultArea" style="display:none;">
+        <div class="pan-section">
+            <div class="section-title">基本信息</div>
+            <div class="info-grid" id="basicInfo"></div>
+        </div>
+
+        <div class="pan-section">
+            <div class="section-title">三传</div>
+            <div class="sanchuan-box" id="sanChuan"></div>
+        </div>
+
+        <div class="pan-section">
+            <div class="section-title">四课</div>
+            <div class="sike-box" id="siKe"></div>
+        </div>
+
+        <div class="pan-section">
+            <div class="section-title">天地盘 (地支十二宫)</div>
+            <div class="tiandipan-box" id="tianDiPan"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    let currentLiuRen = null;
+    let currentSolar = null;
+
+    window.onload = function() {
+        setNow();
+        // 延迟一点执行，确保库加载完成
+        setTimeout(calculatePan, 300);
+    };
+
+    function setNow() {
+        const now = new Date();
+        const offset = now.getTimezoneOffset() * 60000;
+        const localISOTime = (new Date(now - offset)).toISOString().slice(0, 16);
+        document.getElementById('dateInput').value = localISOTime;
+    }
+
+    function showError(msg) {
+        const errDiv = document.getElementById('errorDisplay');
+        errDiv.style.display = 'block';
+        errDiv.textContent = "错误： " + msg;
+        console.error(msg);
+    }
+
+    function clearError() {
+        document.getElementById('errorDisplay').style.display = 'none';
+        document.getElementById('errorDisplay').textContent = '';
+    }
+
+    function calculatePan() {
+        clearError();
+        const inputVal = document.getElementById('dateInput').value;
+        if (!inputVal) return alert("请选择时间");
+
+        try {
+            // 1. 创建 Date 对象
+            const date = new Date(inputVal);
+            if (isNaN(date.getTime())) throw new Error("无效的日期格式");
+
+            // 2. 创建 Solar 对象 (公历)
+            // 检查库是否加载
+            if (typeof Solar === 'undefined' || typeof LiuRen === 'undefined') {
+                throw new Error("核心算法库加载失败，请检查网络或刷新页面");
+            }
+
+            currentSolar = Solar.fromDate(date);
+
+            // 3. 创建大六壬对象
+            // 🌟 修正点：使用 fromSolar 而不是 fromDate，更稳健
+            currentLiuRen = LiuRen.fromSolar(currentSolar);
+
+            // 4. 渲染界面
+            renderUI();
+            
+            document.getElementById('resultArea').style.display = 'block';
+            showMessage("排盘成功！");
+
+        } catch (e) {
+            // 🌟 显示具体的错误信息，而不是笼统的提示
+            showError(e.message);
+        }
+    }
+
+    function renderUI() {
+        // 获取关联对象
+        const lunar = currentSolar.getLunar();
+        const eightChar = lunar.getEightChar();
+
+        // 1. 渲染基础信息
+        document.getElementById('basicInfo').innerHTML = `
+            <div><strong>公历：</strong>${currentSolar.toFullString()}</div>
+            <div><strong>农历：</strong>${lunar.toString()}</div>
+            <div><strong>四柱：</strong>${eightChar.getYear()} ${eightChar.getMonth()} ${eightChar.getDay()} ${eightChar.getTime()}</div>
+            <div><strong>节气：</strong>${lunar.getPrevJieQi().getName()} / ${lunar.getNextJieQi().getName()}</div>
+            <div><strong>月将：</strong>${currentLiuRen.getYueJiang()} (${currentLiuRen.getYueJiangShen()})</div>
+            <div><strong>占时：</strong>${currentLiuRen.getShiZhi()}时</div>
+            <div><strong>空亡：</strong>日(${lunar.getDayXunKong()}) 时(${lunar.getTimeXunKong()})</div>
+            <div><strong>格局：</strong>${currentLiuRen.getGeJu().join('、')}</div>
+        `;
+
+        // 2. 渲染三传
+        const sanChuan = currentLiuRen.getSanChuan();
+        const chuanNames = ['初传', '中传', '末传'];
+        let scHtml = '';
+        sanChuan.forEach((c, i) => {
+            scHtml += `
+                <div class="sanchuan-item">
+                    <span class="sanchuan-name">${chuanNames[i]}</span>
+                    <span style="font-size:1.5em; font-weight:bold; color:#333;">${c.getGan()}${c.getZhi()}</span>
+                    <span style="color:#e74c3c; font-weight:bold;">${c.getJiang()}</span>
+                    <span style="font-size:0.8em; color:#666;">(${c.getLu() ? '禄' : ''}${c.getMa() ? '马' : ''})</span>
+                </div>
+            `;
+        });
+        document.getElementById('sanChuan').innerHTML = scHtml;
+
+        // 3. 渲染四课
+        // 注意：lunar库返回的四课顺序通常是 [第一课, 第二课, 第三课, 第四课]
+        // 古法排布习惯：从右向左。这里为了手机阅读，我们按 1 -> 4 排列，并标明身份
+        const siKe = currentLiuRen.getSiKe();
+        const keLabels = ['第一课(日阳)', '第二课(日阴)', '第三课(辰阳)', '第四课(辰阴)'];
+        let skHtml = '';
+        siKe.forEach((k, i) => {
+            skHtml += `
+                <div class="sike-col">
+                    <div class="sike-label">${keLabels[i]}</div>
+                    <div class="sike-char" style="color:var(--primary-color)">${k.getTianPan()}</div>
+                    <div class="sike-char">${k.getDiPan()}</div>
+                </div>
+            `;
+        });
+        document.getElementById('siKe').innerHTML = skHtml;
+
+        // 4. 渲染天地盘 (地支十二宫)
+        const diZhis = ['子','丑','寅','卯','辰','巳','午','未','申','酉','戌','亥'];
+        let panHtml = '';
+        
+        diZhis.forEach(dz => {
+            // 修正点：确保使用正确的 API 获取该地支上的信息
+            // getTianPan(dz): 获取地盘 'dz' 上乘的天盘地支
+            // getTianJiang(dz): 获取地盘 'dz' 上乘的天将
+            const tian = currentLiuRen.getTianPan(dz);
+            const jiang = currentLiuRen.getTianJiang(dz);
+            
+            panHtml += `
+                <div class="grid-cell">
+                    <div class="shen-jiang">${jiang}</div>
+                    <div class="tian-pan">${tian}</div>
+                    <div class="di-pan">${dz}</div>
+                </div>
+            `;
+        });
+        document.getElementById('tianDiPan').innerHTML = panHtml;
+    }
+
+    function showMessage(msg) {
+        const el = document.getElementById('message');
+        el.textContent = msg;
+        setTimeout(() => el.textContent = '', 3000);
+    }
+
+    function copyForAI() {
+        if (!currentLiuRen) return alert("请先排盘");
+        
+        const lunar = currentSolar.getLunar();
+        const eightChar = lunar.getEightChar();
+        const sanChuan = currentLiuRen.getSanChuan();
+        const siKe = currentLiuRen.getSiKe();
+
+        // 构造提示词
+        let prompt = `我正在使用大六壬排盘分析问题，请作为大六壬专家（参考古籍如《毕法赋》）进行解读。
+
+【排盘数据】
+📅 公历：${currentSolar.toFullString()}
+🌙 农历：${lunar.toString()}
+🔢 干支：${eightChar.getYear()} ${eightChar.getMonth()} ${eightChar.getDay()} ${eightChar.getTime()}
+🌟 月将：${currentLiuRen.getYueJiang()} (${currentLiuRen.getYueJiangShen()})  |  占时：${currentLiuRen.getShiZhi()}
+🚫 空亡：日(${lunar.getDayXunKong()}) 时(${lunar.getTimeXunKong()})
+🧩 格局：${currentLiuRen.getGeJu().join('、')}
+
+【三传】
+1. 初传：${sanChuan[0].getGan()}${sanChuan[0].getZhi()} 临 ${sanChuan[0].getJiang()}
+2. 中传：${sanChuan[1].getGan()}${sanChuan[1].getZhi()} 临 ${sanChuan[1].getJiang()}
+3. 末传：${sanChuan[2].getGan()}${sanChuan[2].getZhi()} 临 ${sanChuan[2].getJiang()}
+
+【四课】(天盘/地盘)
+1. ${siKe[0].getTianPan()}/${siKe[0].getDiPan()} (日阳)
+2. ${siKe[1].getTianPan()}/${siKe[1].getDiPan()} (日阴)
+3. ${siKe[2].getTianPan()}/${siKe[2].getDiPan()} (辰阳)
+4. ${siKe[3].getTianPan()}/${siKe[3].getDiPan()} (辰阴)
+
+【任务】
+1. 分析格局吉凶。
+2. 依据“初传看起因，中传看经过，末传看结果”的逻辑进行推演。
+3. 结合类神和神将关系，给出具体的建议。`;
+
+        navigator.clipboard.writeText(prompt).then(() => {
+            showMessage("✅ 提示词已复制！请粘贴给 AI。");
+        }).catch(err => {
+            console.error(err);
+            alert("复制失败，请手动复制");
+        });
+    }
+</script>
+
+</body>
+</html>
